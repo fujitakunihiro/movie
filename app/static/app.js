@@ -88,6 +88,7 @@ let pendingSeekTarget = null;
 let serverAvailableDuration = 0;
 let seekPollGeneration = null;
 let currentVideoPath = "";
+let nativeHlsPlayback = false;
 
 function formatTime(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) return "--:--";
@@ -131,11 +132,14 @@ function syncPendingSeek() {
   const target = pendingSeekTarget;
   const mediaEnd = mediaAvailableDuration();
   const playerReady = mediaEnd >= target - .1;
-  const completedAtEnd = currentHlsInfo && currentHlsInfo.complete && Number.isFinite(sourceDuration)
-    && target >= sourceDuration - 1 && mediaEnd > 0;
-  if (playerReady || completedAtEnd) {
+  const serverReady = serverAvailableDuration >= target - .1;
+  const transcodeComplete = currentHlsInfo && currentHlsInfo.complete;
+  if (playerReady || (nativeHlsPlayback && serverReady) || transcodeComplete) {
     pendingSeekTarget = null;
-    try { $("player").currentTime = Math.min(target, mediaEnd); } catch (_) {}
+    const seekTo = transcodeComplete && Number.isFinite(sourceDuration)
+      ? Math.min(target, sourceDuration)
+      : (playerReady ? Math.min(target, mediaEnd) : target);
+    try { $("player").currentTime = seekTo; } catch (_) {}
     $("status").textContent = "";
     updateTransport();
   }
@@ -203,6 +207,7 @@ function playVideo(video) {
   sourceDuration = NaN;
   pendingSeekTarget = null;
   serverAvailableDuration = 0;
+  nativeHlsPlayback = false;
   updateTransport();
   $("play-pause").disabled = true;
   $("play-pause").textContent = "準備中…";
@@ -242,6 +247,7 @@ function playVideo(video) {
     $("play-pause").setAttribute("aria-label", "再生");
     const masterUrl = info.master;
     const nativeHls = player.canPlayType("application/vnd.apple.mpegurl");
+    nativeHlsPlayback = Boolean(nativeHls && !(window.Hls && Hls.isSupported()));
     if (window.Hls && Hls.isSupported()) {
       currentHls = new Hls({ capLevelToPlayerSize: true, maxBufferLength: 30 });
       currentHls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -293,6 +299,7 @@ async function closePlayer() {
   sourceDuration = NaN;
   pendingSeekTarget = null;
   serverAvailableDuration = 0;
+  nativeHlsPlayback = false;
   const panel = $("player-panel"), player = $("player");
   panel.classList.remove("mobile-immersive", "rotate-landscape");
   document.body.classList.remove("mobile-player-open");
