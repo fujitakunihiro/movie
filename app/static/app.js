@@ -1,5 +1,7 @@
 const $ = (id) => document.getElementById(id);
 let currentPath = "";
+let viewRequestId = 0;
+let searchTimer = null;
 const makeIcon = (pathData) => {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", "0 0 24 24");
@@ -37,7 +39,36 @@ function renderBreadcrumbs(path) {
   parts.forEach((part, i) => { target = target ? `${target}/${part}` : part; addCrumb(part, target, i === parts.length - 1); });
 }
 
-async function loadDirectory(path = "") {
+function renderVideos(videoBox, videos, showLocation = false) {
+  videoBox.replaceChildren();
+  videos.forEach((video) => {
+    const row = document.createElement("button"); row.className = "video-row";
+    const thumb = document.createElement("span"); thumb.className = "video-thumb";
+    const placeholder = document.createElement("span"); placeholder.className = "thumb-placeholder";
+    placeholder.append(makeIcon("M8 5.8c0-.77.84-1.25 1.5-.87l9.32 5.36a1 1 0 0 1 0 1.74L9.5 17.39A1 1 0 0 1 8 16.52V5.8Z"));
+    const image = document.createElement("img"); image.loading = "lazy"; image.alt = "";
+    image.src = "/api/thumbnail?path=" + encodeURIComponent(video.path);
+    image.addEventListener("error", () => { image.hidden = true; }, { once: true });
+    thumb.append(placeholder, image);
+    const name = document.createElement("span"); name.className = "video-name"; name.textContent = video.name;
+    const meta = document.createElement("span"); meta.className = "video-meta"; meta.textContent = prettySize(video.size);
+    const info = document.createElement("span"); info.className = "video-info";
+    if (showLocation) {
+      info.classList.add("search-result");
+      const location = document.createElement("span"); location.className = "video-location";
+      location.textContent = video.path.includes("/") ? video.path.slice(0, video.path.lastIndexOf("/")) : "ホーム";
+      info.append(name, meta, location);
+    } else {
+      info.append(name, meta);
+    }
+    row.append(thumb, info); row.addEventListener("click", () => playVideo(video)); videoBox.append(row);
+  });
+}
+
+async function loadDirectory(path = "", clearSearch = true) {
+  const requestId = ++viewRequestId;
+  if (clearSearch) $("video-search").value = "";
+  $("breadcrumbs").hidden = false;
   currentPath = path;
   $("status").textContent = "読み込み中…";
   $("empty").hidden = true;
@@ -45,10 +76,11 @@ async function loadDirectory(path = "") {
     const response = await fetch(`/api/browse?path=${encodeURIComponent(path)}`);
     if (!response.ok) throw new Error(response.status === 401 ? "認証が必要です。ページを再読み込みしてください。" : `読み込みに失敗しました (${response.status})`);
     const data = await response.json();
+    if (requestId !== viewRequestId) return;
     currentPath = data.path;
     renderBreadcrumbs(data.path);
     const folderBox = $("folders"), videoBox = $("videos");
-    folderBox.replaceChildren(); videoBox.replaceChildren();
+    folderBox.replaceChildren();
     data.folders.forEach((folder) => {
       const card = document.createElement("button"); card.className = "folder-card";
       const icon = document.createElement("span"); icon.className = "folder-icon";
@@ -57,27 +89,40 @@ async function loadDirectory(path = "") {
       const chevron = document.createElement("span"); chevron.className = "folder-chevron"; chevron.textContent = "›";
       card.append(icon, name, chevron); card.addEventListener("click", () => loadDirectory(folder.path)); folderBox.append(card);
     });
-    data.videos.forEach((video) => {
-      const row = document.createElement("button"); row.className = "video-row";
-      const thumb = document.createElement("span"); thumb.className = "video-thumb";
-      const placeholder = document.createElement("span"); placeholder.className = "thumb-placeholder";
-      placeholder.append(makeIcon("M8 5.8c0-.77.84-1.25 1.5-.87l9.32 5.36a1 1 0 0 1 0 1.74L9.5 17.39A1 1 0 0 1 8 16.52V5.8Z"));
-      const image = document.createElement("img"); image.loading = "lazy"; image.alt = "";
-      image.src = "/api/thumbnail?path=" + encodeURIComponent(video.path);
-      image.addEventListener("error", () => { image.hidden = true; }, { once: true });
-      thumb.append(placeholder, image);
-      const name = document.createElement("span"); name.className = "video-name"; name.textContent = video.name;
-      const meta = document.createElement("span"); meta.className = "video-meta"; meta.textContent = prettySize(video.size);
-      const info = document.createElement("span"); info.className = "video-info"; info.append(name, meta);
-      row.append(thumb, info); row.addEventListener("click", () => playVideo(video)); videoBox.append(row);
-    });
+    renderVideos(videoBox, data.videos);
     $("folders-section").hidden = data.folders.length === 0;
     $("videos-section").hidden = data.videos.length === 0;
+    $("video-title").textContent = "動画";
     $("folder-count").textContent = data.folders.length ? `${data.folders.length}項目` : "";
     $("video-count").textContent = data.videos.length ? `(${data.videos.length})` : "";
+    $("empty").textContent = "このフォルダに動画やサブフォルダはありません。";
     $("empty").hidden = data.folders.length + data.videos.length !== 0;
     $("status").textContent = "";
-  } catch (error) { $("status").textContent = error.message; }
+  } catch (error) { if (requestId === viewRequestId) $("status").textContent = error.message; }
+}
+
+async function searchVideos(query, refreshIndex = false) {
+  const requestId = ++viewRequestId;
+  $("breadcrumbs").hidden = true;
+  $("folders-section").hidden = true;
+  $("videos-section").hidden = true;
+  $("empty").hidden = true;
+  $("status").textContent = "検索中…";
+  try {
+    const response = await fetch(`/api/search?q=${encodeURIComponent(query)}${refreshIndex ? "&refresh=true" : ""}`);
+    if (!response.ok) throw new Error(`検索に失敗しました (${response.status})`);
+    const data = await response.json();
+    if (requestId !== viewRequestId || $("video-search").value.trim() !== query) return;
+    renderVideos($("videos"), data.videos, true);
+    $("videos-section").hidden = false;
+    $("video-title").textContent = "検索結果";
+    $("video-count").textContent = data.truncated ? `${data.videos.length}件以上` : `${data.videos.length}件`;
+    $("empty").textContent = "一致する動画が見つかりませんでした。";
+    $("empty").hidden = data.videos.length !== 0;
+    $("status").textContent = "";
+  } catch (error) {
+    if (requestId === viewRequestId) $("status").textContent = error.message;
+  }
 }
 
 let currentHls = null;
@@ -384,7 +429,20 @@ $("player").addEventListener("durationchange", () => { updateTransport(); syncPe
 $("player").addEventListener("loadedmetadata", () => updateTransport());
 $("player").addEventListener("play", () => { $("play-pause").disabled = false; $("play-pause").textContent = "一時停止"; $("play-pause").setAttribute("aria-label", "一時停止"); });
 $("player").addEventListener("pause", () => { $("play-pause").disabled = false; $("play-pause").textContent = "再生"; $("play-pause").setAttribute("aria-label", "再生"); });
-$("refresh").addEventListener("click", () => loadDirectory(currentPath));
+$("refresh").addEventListener("click", () => {
+  const query = $("video-search").value.trim();
+  if (query) searchVideos(query, true);
+  else loadDirectory(currentPath, false);
+});
+$("video-search").addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  const query = $("video-search").value.trim();
+  if (!query) {
+    loadDirectory(currentPath, false);
+    return;
+  }
+  searchTimer = setTimeout(() => searchVideos(query), 250);
+});
 $("speed").addEventListener("change", (event) => { $("player").playbackRate = Number(event.target.value); });
 $("fullscreen").addEventListener("click", async () => {
   const player = $("player"), panel = $("player-panel");

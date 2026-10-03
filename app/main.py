@@ -30,6 +30,10 @@ _jobs: set[str] = set()
 _jobs_lock = threading.Lock()
 _thumbnail_locks: dict[str, threading.Lock] = {}
 _thumbnail_locks_guard = threading.Lock()
+_search_index_lock = threading.Lock()
+_search_index: list[dict] | None = None
+_search_index_created = 0.0
+SEARCH_INDEX_TTL = 60.0
 CHUNK_SIZE = 1024 * 1024
 RANGE_RE = re.compile(r"^bytes=(\d*)-(\d*)$")
 app = FastAPI(title="Home Video Streamer", docs_url=None, redoc_url=None)
@@ -136,6 +140,64 @@ def browse(path: str = Query(default="")) -> dict:
             # Ignore broken links and targets outside the active read-only mount.
             continue
     return {"path": display_path, "folders": folders, "videos": videos}
+
+
+def _build_video_search_index() -> list[dict]:
+    stack: list[tuple[Path, str, Path]] = [(MEDIA_ROOT, "", MEDIA_ROOT)]
+    videos = []
+    while stack:
+        directory, display_path, allowed_root = stack.pop()
+        try:
+            children = sorted(directory.iterdir(), key=lambda p: p.name.casefold())
+        except OSError:
+            continue
+
+        for child in children:
+            if (
+                display_path == ""
+                and child.name.casefold() == "movie.lnk"
+                and SHORTCUT_TARGET is not None
+                and SHORTCUT_TARGET.is_dir()
+            ):
+                stack.append((SHORTCUT_TARGET, SHORTCUT_ALIAS, SHORTCUT_TARGET))
+                continue
+            try:
+                linked = is_directory_link(child)
+                resolved_child = child.resolve(strict=True)
+                resolved_child.relative_to(allowed_root)
+                child_path = f"{display_path}/{child.name}" if display_path else child.name
+                if resolved_child.is_dir() and not linked:
+                    stack.append((resolved_child, child_path, allowed_root))
+                elif (
+                    not linked
+                    and resolved_child.is_file()
+                    and child.suffix.lower() in VIDEO_EXTENSIONS
+                ):
+                    videos.append(file_info(resolved_child, child_path))
+            except (OSError, ValueError):
+                continue
+
+    videos.sort(key=lambda video: video["path"].casefold())
+    return videos
+
+
+@app.get("/api/search")
+def search_videos(q: str = Query(default="", max_length=200), refresh: bool = False) -> dict:
+    """Search video filenames recursively through the visible library."""
+    global _search_index, _search_index_created
+    query = q.strip().casefold()
+    if not query:
+        return {"videos": [], "truncated": False}
+
+    with _search_index_lock:
+        if _search_index is None or refresh or time.monotonic() - _search_index_created > SEARCH_INDEX_TTL:
+            _search_index = _build_video_search_index()
+            _search_index_created = time.monotonic()
+        index = _search_index
+
+    matches = [video for video in index if query in video["name"].casefold()]
+    limit = 500
+    return {"videos": matches[:limit], "truncated": len(matches) > limit}
 
 def _transcode_key(media_path: Path) -> str:
     stat = media_path.stat()

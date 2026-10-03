@@ -30,6 +30,10 @@
       <h2>映像を、もっと心地よく。</h2>
       <p>あなたのコレクションを、いつでも好きな画面で。</p>
     </section>
+    <div class="search-box" role="search">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" stroke="currentColor" stroke-width="1.7"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      <input id="video-search" type="search" maxlength="200" placeholder="動画を検索" aria-label="動画を検索" autocomplete="off">
+    </div>
     <nav id="breadcrumbs" class="breadcrumbs" aria-label="パンくずリスト"></nav>
     <p id="status" class="status" role="status"></p>
     <section id="folders-section" class="section" hidden>
@@ -37,7 +41,7 @@
       <div id="folders" class="folder-grid"></div>
     </section>
     <section id="videos-section" class="section" hidden>
-      <div class="section-heading"><h2 class="section-title">動画</h2><span id="video-count" class="count"></span></div>
+      <div class="section-heading"><h2 id="video-title" class="section-title">動画</h2><span id="video-count" class="count"></span></div>
       <div id="videos" class="video-list"></div>
     </section>
     <p id="empty" class="empty" hidden>このフォルダに動画やサブフォルダはありません。</p>

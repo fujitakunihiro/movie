@@ -32,6 +32,11 @@ h1 { margin: 0; font-size: clamp(1.48rem, 4vw, 1.85rem); font-weight: 650; lette
 .intro { margin: 0 0 34px; max-width: 720px; }
 .intro h2 { margin: 0; font-size: clamp(2rem, 5.7vw, 3.4rem); line-height: 1.08; letter-spacing: -.065em; font-weight: 700; }
 .intro p { color: var(--muted); font-size: clamp(.98rem, 2vw, 1.1rem); margin: 12px 0 0; letter-spacing: -.015em; }
+.search-box { display: flex; align-items: center; gap: 11px; width: min(560px, 100%); min-height: 50px; margin: 0 0 20px; padding: 0 15px; border: 1px solid #e5e5ea; border-radius: 15px; background: rgba(255,255,255,.78); color: var(--muted); box-shadow: 0 2px 8px #00000004; }
+.search-box:focus-within { border-color: #9bc8f5; box-shadow: 0 0 0 3px #0071e31a; }
+.search-box svg { width: 19px; height: 19px; flex: none; }
+.search-box input { width: 100%; min-width: 0; padding: 12px 0; border: 0; outline: 0; background: transparent; color: #1d1d1f; font: inherit; font-size: .95rem; }
+.search-box input::placeholder { color: #86868b; }
 .icon-button { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border: 1px solid #d2d2d7; border-radius: 50%; background: rgba(255,255,255,.72); color: #1d1d1f; cursor: pointer; transition: transform .18s, background .18s, box-shadow .18s; }
 .icon-button:hover { background: white; box-shadow: 0 5px 16px #00000012; transform: rotate(28deg); }
 .icon-button svg { width: 18px; height: 18px; }
@@ -62,7 +67,9 @@ h2.section-title { margin: 0; font-size: 1.28rem; font-weight: 650; letter-spaci
 .video-row:hover .video-thumb img { transform: scale(1.035); }
 .video-thumb img[hidden] { display: none; }
 .video-info { display: flex; align-items: flex-start; gap: 12px; min-height: 70px; padding: 14px 15px 15px; }
+.video-info.search-result { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; }
 .video-name { min-width: 0; flex: 1; overflow-wrap: anywhere; font-size: .94rem; font-weight: 600; line-height: 1.4; letter-spacing: -.015em; }
+.video-location { grid-column: 1 / -1; overflow: hidden; color: var(--muted); font-size: .73rem; text-overflow: ellipsis; white-space: nowrap; }
 .video-meta { flex: none; padding-top: 2px; color: var(--muted); font-size: .76rem; white-space: nowrap; }
 .empty { padding: 54px 22px; border: 1px solid #e5e5ea; border-radius: 20px; background: var(--surface); color: var(--muted); text-align: center; }
 .player-panel { margin-top: 38px; padding: clamp(16px, 3vw, 25px); border: 1px solid #2c2c2e; border-radius: 24px; background: #1d1d1f; color: #f5f5f7; box-shadow: 0 14px 40px #00000018; }
