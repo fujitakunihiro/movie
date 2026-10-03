@@ -65,6 +65,27 @@ function renderVideos(videoBox, videos, showLocation = false) {
   });
 }
 
+function renderFolders(folderBox, folders, showLocation = false) {
+  folderBox.replaceChildren();
+  folders.forEach((folder) => {
+    const card = document.createElement("button"); card.className = "folder-card";
+    const icon = document.createElement("span"); icon.className = "folder-icon";
+    icon.append(makeIcon("M3 7.5A2.5 2.5 0 0 1 5.5 5h4.1l2 2H18.5A2.5 2.5 0 0 1 21 9.5v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5v-9Z"));
+    const label = document.createElement("span"); label.className = "folder-label";
+    const name = document.createElement("span"); name.className = "folder-name"; name.textContent = folder.name;
+    label.append(name);
+    if (showLocation) {
+      const location = document.createElement("span"); location.className = "folder-location";
+      location.textContent = folder.path.includes("/") ? folder.path.slice(0, folder.path.lastIndexOf("/")) : "ホーム";
+      label.append(location);
+    }
+    const chevron = document.createElement("span"); chevron.className = "folder-chevron"; chevron.textContent = "›";
+    card.append(icon, label, chevron);
+    card.addEventListener("click", () => loadDirectory(folder.path));
+    folderBox.append(card);
+  });
+}
+
 async function loadDirectory(path = "", clearSearch = true) {
   const requestId = ++viewRequestId;
   if (clearSearch) $("video-search").value = "";
@@ -80,18 +101,11 @@ async function loadDirectory(path = "", clearSearch = true) {
     currentPath = data.path;
     renderBreadcrumbs(data.path);
     const folderBox = $("folders"), videoBox = $("videos");
-    folderBox.replaceChildren();
-    data.folders.forEach((folder) => {
-      const card = document.createElement("button"); card.className = "folder-card";
-      const icon = document.createElement("span"); icon.className = "folder-icon";
-      icon.append(makeIcon("M3 7.5A2.5 2.5 0 0 1 5.5 5h4.1l2 2H18.5A2.5 2.5 0 0 1 21 9.5v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 16.5v-9Z"));
-      const name = document.createElement("span"); name.className = "folder-name"; name.textContent = folder.name;
-      const chevron = document.createElement("span"); chevron.className = "folder-chevron"; chevron.textContent = "›";
-      card.append(icon, name, chevron); card.addEventListener("click", () => loadDirectory(folder.path)); folderBox.append(card);
-    });
+    renderFolders(folderBox, data.folders);
     renderVideos(videoBox, data.videos);
     $("folders-section").hidden = data.folders.length === 0;
     $("videos-section").hidden = data.videos.length === 0;
+    $("folders-section").querySelector(".section-title").textContent = "フォルダ";
     $("video-title").textContent = "動画";
     $("folder-count").textContent = data.folders.length ? `${data.folders.length}項目` : "";
     $("video-count").textContent = data.videos.length ? `(${data.videos.length})` : "";
@@ -113,12 +127,16 @@ async function searchVideos(query, refreshIndex = false) {
     if (!response.ok) throw new Error(`検索に失敗しました (${response.status})`);
     const data = await response.json();
     if (requestId !== viewRequestId || $("video-search").value.trim() !== query) return;
+    renderFolders($("folders"), data.folders, true);
+    $("folders-section").hidden = data.folders.length === 0;
+    $("folder-count").textContent = data.truncatedFolders ? `${data.folders.length}件以上` : `${data.folders.length}件`;
     renderVideos($("videos"), data.videos, true);
-    $("videos-section").hidden = false;
-    $("video-title").textContent = "検索結果";
+    $("videos-section").hidden = data.videos.length === 0;
+    $("video-title").textContent = "動画の検索結果";
     $("video-count").textContent = data.truncated ? `${data.videos.length}件以上` : `${data.videos.length}件`;
-    $("empty").textContent = "一致する動画が見つかりませんでした。";
-    $("empty").hidden = data.videos.length !== 0;
+    $("folders-section").querySelector(".section-title").textContent = "フォルダの検索結果";
+    $("empty").textContent = "一致するフォルダや動画が見つかりませんでした。";
+    $("empty").hidden = data.videos.length + data.folders.length !== 0;
     $("status").textContent = "";
   } catch (error) {
     if (requestId === viewRequestId) $("status").textContent = error.message;

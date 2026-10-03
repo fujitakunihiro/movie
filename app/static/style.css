@@ -55,7 +55,9 @@ h2.section-title { margin: 0; font-size: 1.28rem; font-weight: 650; letter-spaci
 .folder-card:hover { transform: translateY(-2px); border-color: #d0d0d7; box-shadow: 0 10px 24px #0000000c; }
 .folder-icon { display: grid; place-items: center; width: 43px; height: 43px; flex: none; border-radius: 14px; color: #1672d4; background: linear-gradient(145deg, #e7f2ff, #d5e9ff); }
 .folder-icon svg { width: 21px; height: 21px; }
+.folder-label { display: block; min-width: 0; flex: 1; }
 .folder-name { min-width: 0; flex: 1; overflow-wrap: anywhere; font-size: .98rem; font-weight: 600; letter-spacing: -.02em; }
+.folder-location { display: block; overflow: hidden; margin-top: 4px; color: var(--muted); font-size: .73rem; text-overflow: ellipsis; white-space: nowrap; }
 .folder-chevron { color: #a1a1a6; font-size: 1.25rem; font-weight: 300; }
 .video-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
 .video-row { display: block; width: 100%; min-width: 0; padding: 0; overflow: hidden; border: 1px solid #e5e5ea; border-radius: 18px; background: var(--surface); color: #1d1d1f; text-align: left; cursor: pointer; box-shadow: 0 2px 8px #00000005; transition: transform .22s, box-shadow .22s, border-color .22s; }

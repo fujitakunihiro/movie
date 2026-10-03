@@ -31,7 +31,7 @@ _jobs_lock = threading.Lock()
 _thumbnail_locks: dict[str, threading.Lock] = {}
 _thumbnail_locks_guard = threading.Lock()
 _search_index_lock = threading.Lock()
-_search_index: list[dict] | None = None
+_search_index: dict[str, list[dict]] | None = None
 _search_index_created = 0.0
 SEARCH_INDEX_TTL = 60.0
 CHUNK_SIZE = 1024 * 1024
@@ -142,9 +142,10 @@ def browse(path: str = Query(default="")) -> dict:
     return {"path": display_path, "folders": folders, "videos": videos}
 
 
-def _build_video_search_index() -> list[dict]:
+def _build_video_search_index() -> dict[str, list[dict]]:
     stack: list[tuple[Path, str, Path]] = [(MEDIA_ROOT, "", MEDIA_ROOT)]
     videos = []
+    folders = []
     while stack:
         directory, display_path, allowed_root = stack.pop()
         try:
@@ -159,6 +160,7 @@ def _build_video_search_index() -> list[dict]:
                 and SHORTCUT_TARGET is not None
                 and SHORTCUT_TARGET.is_dir()
             ):
+                folders.append({"name": SHORTCUT_ALIAS, "path": SHORTCUT_ALIAS})
                 stack.append((SHORTCUT_TARGET, SHORTCUT_ALIAS, SHORTCUT_TARGET))
                 continue
             try:
@@ -166,8 +168,10 @@ def _build_video_search_index() -> list[dict]:
                 resolved_child = child.resolve(strict=True)
                 resolved_child.relative_to(allowed_root)
                 child_path = f"{display_path}/{child.name}" if display_path else child.name
-                if resolved_child.is_dir() and not linked:
-                    stack.append((resolved_child, child_path, allowed_root))
+                if resolved_child.is_dir():
+                    folders.append({"name": child.name, "path": child_path})
+                    if not linked:
+                        stack.append((resolved_child, child_path, allowed_root))
                 elif (
                     not linked
                     and resolved_child.is_file()
@@ -178,7 +182,8 @@ def _build_video_search_index() -> list[dict]:
                 continue
 
     videos.sort(key=lambda video: video["path"].casefold())
-    return videos
+    folders.sort(key=lambda folder: folder["path"].casefold())
+    return {"videos": videos, "folders": folders}
 
 
 @app.get("/api/search")
@@ -195,9 +200,15 @@ def search_videos(q: str = Query(default="", max_length=200), refresh: bool = Fa
             _search_index_created = time.monotonic()
         index = _search_index
 
-    matches = [video for video in index if query in video["name"].casefold()]
+    matches = [video for video in index["videos"] if query in video["name"].casefold()]
+    matched_folders = [folder for folder in index["folders"] if query in folder["name"].casefold()]
     limit = 500
-    return {"videos": matches[:limit], "truncated": len(matches) > limit}
+    return {
+        "videos": matches[:limit],
+        "folders": matched_folders[:limit],
+        "truncated": len(matches) > limit,
+        "truncatedFolders": len(matched_folders) > limit,
+    }
 
 def _transcode_key(media_path: Path) -> str:
     stat = media_path.stat()
