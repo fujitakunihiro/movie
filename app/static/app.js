@@ -308,10 +308,10 @@ async function closePlayer() {
   serverAvailableDuration = 0;
   nativeHlsPlayback = false;
   const panel = $("player-panel"), player = $("player");
-  panel.classList.remove("mobile-immersive", "rotate-landscape");
+  panel.classList.remove("mobile-immersive", "rotate-landscape", "video-focus");
   document.body.classList.remove("mobile-player-open");
   if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
-  if (document.fullscreenElement === panel && document.exitFullscreen) {
+  if (document.fullscreenElement && panel.contains(document.fullscreenElement) && document.exitFullscreen) {
     try { await document.exitFullscreen(); } catch (_) {}
   }
   player.pause(); player.removeAttribute("src"); player.load();
@@ -324,11 +324,20 @@ window.addEventListener("resize", updateLandscapeLayout);
 window.addEventListener("orientationchange", updateLandscapeLayout);
 document.addEventListener("fullscreenchange", () => {
   const panel = $("player-panel");
+  const player = $("player");
+  if (document.fullscreenElement === player) return;
+  panel.classList.remove("video-focus");
+  player.controls = false;
   if (panel.classList.contains("mobile-immersive") && document.fullscreenElement !== panel) {
     panel.classList.remove("mobile-immersive", "rotate-landscape");
     document.body.classList.remove("mobile-player-open");
     if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
   }
+});
+
+$("player").addEventListener("webkitendfullscreen", () => {
+  $("player").controls = false;
+  $("player-panel").classList.remove("video-focus");
 });
 
 $("quality").addEventListener("change", (event) => {
@@ -378,15 +387,18 @@ $("player").addEventListener("pause", () => { $("play-pause").disabled = false; 
 $("refresh").addEventListener("click", () => loadDirectory(currentPath));
 $("speed").addEventListener("change", (event) => { $("player").playbackRate = Number(event.target.value); });
 $("fullscreen").addEventListener("click", async () => {
-  if (isMobilePlayback()) {
-    enterMobileFullscreen();
-    return;
-  }
-  const player = $("player");
+  const player = $("player"), panel = $("player-panel");
+  player.controls = true;
+  if (isMobilePlayback()) panel.classList.add("video-focus");
   try {
     if (player.requestFullscreen) await player.requestFullscreen();
     else if (player.webkitEnterFullscreen) player.webkitEnterFullscreen();
-  } catch (_) { /* Browser denied fullscreen; native video controls remain available. */ }
+    if (isMobilePlayback() && screen.orientation && screen.orientation.lock) {
+      await screen.orientation.lock("landscape").catch(() => updateLandscapeLayout());
+    }
+  } catch (_) {
+    if (!player.webkitEnterFullscreen) updateLandscapeLayout();
+  }
 });
 $("close-player").addEventListener("click", closePlayer);
 loadDirectory();
