@@ -389,16 +389,25 @@ $("speed").addEventListener("change", (event) => { $("player").playbackRate = Nu
 $("fullscreen").addEventListener("click", async () => {
   const player = $("player"), panel = $("player-panel");
   player.controls = true;
-  if (isMobilePlayback()) panel.classList.add("video-focus");
+  if (isMobilePlayback()) {
+    // Keep fullscreen on the player panel so CSS can rotate it when the OS
+    // orientation lock prevents the browser from rotating the device UI.
+    panel.classList.add("mobile-immersive", "video-focus");
+    document.body.classList.add("mobile-player-open");
+    updateLandscapeLayout();
+    if (document.fullscreenElement === player && document.exitFullscreen) {
+      try { await document.exitFullscreen(); } catch (_) {}
+      player.controls = true;
+      panel.classList.add("mobile-immersive", "video-focus");
+      document.body.classList.add("mobile-player-open");
+      updateLandscapeLayout();
+    }
+    return;
+  }
   try {
     if (player.requestFullscreen) await player.requestFullscreen();
     else if (player.webkitEnterFullscreen) player.webkitEnterFullscreen();
-    if (isMobilePlayback() && screen.orientation && screen.orientation.lock) {
-      await screen.orientation.lock("landscape").catch(() => updateLandscapeLayout());
-    }
-  } catch (_) {
-    if (!player.webkitEnterFullscreen) updateLandscapeLayout();
-  }
+  } catch (_) { /* Browser denied fullscreen; native video controls remain available. */ }
 });
 $("close-player").addEventListener("click", closePlayer);
 loadDirectory();
