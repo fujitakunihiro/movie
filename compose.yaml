@@ -1,0 +1,27 @@
+name: home-video-streamer
+services:
+  video-server:
+    build: .
+    container_name: home-video-streamer
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MEDIA_ROOT: /media
+      SHORTCUT_MOVIE_TARGET: /shortcut-targets/movie
+      TRANSCODE_CACHE: /cache
+    ports:
+      - "${PORT:-8000}:8000"
+    volumes:
+      - type: bind
+        source: "${VIDEO_DIR:-./videos}"
+        target: /media
+        read_only: true
+      - type: bind
+        source: "${MOVIE_DIR:-./videos}"
+        target: /shortcut-targets/movie
+        read_only: true
+      - type: bind
+        source: ./cache
+        target: /cache
+
