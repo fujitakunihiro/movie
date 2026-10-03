@@ -220,17 +220,7 @@ function playVideo(video) {
   resetQualityOptions(true);
   const panel = $("player-panel");
   if (isMobilePlayback()) {
-    panel.classList.add("mobile-immersive");
-    document.body.classList.add("mobile-player-open");
-    updateLandscapeLayout();
-    // Fullscreen must be requested directly from the user's tap, before HLS preparation awaits.
-    if (panel.requestFullscreen) {
-      panel.requestFullscreen().then(() => {
-        if (screen.orientation && screen.orientation.lock) {
-          screen.orientation.lock("landscape").catch(() => {});
-        }
-      }).catch(() => {});
-    }
+    enterMobileFullscreen();
   } else {
     panel.classList.remove("mobile-immersive", "rotate-landscape");
     panel.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -290,6 +280,23 @@ function updateLandscapeLayout() {
   const panel = $("player-panel");
   if (!panel.classList.contains("mobile-immersive")) return;
   panel.classList.toggle("rotate-landscape", window.matchMedia("(orientation: portrait)").matches);
+}
+
+function enterMobileFullscreen() {
+  const panel = $("player-panel");
+  panel.classList.add("mobile-immersive");
+  document.body.classList.add("mobile-player-open");
+  updateLandscapeLayout();
+  // Invoke fullscreen synchronously from the tap; orientation locking is allowed after fullscreen.
+  let fullscreenRequest = Promise.resolve();
+  if (panel.requestFullscreen && document.fullscreenElement !== panel) {
+    try { fullscreenRequest = panel.requestFullscreen(); } catch (_) { updateLandscapeLayout(); }
+  }
+  Promise.resolve(fullscreenRequest).then(() => {
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock("landscape").catch(() => updateLandscapeLayout());
+    }
+  }).catch(() => updateLandscapeLayout());
 }
 
 async function closePlayer() {
@@ -371,6 +378,10 @@ $("player").addEventListener("pause", () => { $("play-pause").disabled = false; 
 $("refresh").addEventListener("click", () => loadDirectory(currentPath));
 $("speed").addEventListener("change", (event) => { $("player").playbackRate = Number(event.target.value); });
 $("fullscreen").addEventListener("click", async () => {
+  if (isMobilePlayback()) {
+    enterMobileFullscreen();
+    return;
+  }
   const player = $("player");
   try {
     if (player.requestFullscreen) await player.requestFullscreen();
